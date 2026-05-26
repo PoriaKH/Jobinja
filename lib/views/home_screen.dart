@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import '../models/job.dart';
 import '../presenters/job_presenter.dart';
 import '../services/api_service.dart';
-import '../widgets/job_card.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final ApiService apiService;
+
+  const HomeScreen({
+    super.key,
+    required this.apiService,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -21,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
   @override
   void initState() {
     super.initState();
-    presenter = JobPresenter(this, ApiService());
+    presenter = JobPresenter(this, widget.apiService);
     presenter.loadJobs();
   }
 
@@ -72,6 +76,14 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
     );
   }
 
+  void openJob(Job job){
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Selected job URL: ${job.detailUrl}'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget body;
@@ -79,14 +91,39 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
     if (isLoading) {
       body = const Center(child: CircularProgressIndicator());
     } else if (errorMessage != null) {
-      body = Center(child: Text(errorMessage!));
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(
+            errorMessage!,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
     } else {
       body = ListView.builder(
         itemCount: jobs.length,
         itemBuilder: (context, index) {
-          return JobCard(
-            job: jobs[index],
-            onTap: () => openJobDetails(jobs[index]),
+          final job = jobs[index];
+
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: ListTile(
+              title: Text(
+                job.title,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                '${job.companyName}\n'
+                    '${job.location}\n'
+                    '${job.cooperationType}\n'
+                    '${job.publishDate}',
+              ),
+              isThreeLine: true,
+              onTap: () {
+                openJob(job);
+              },
+            ),
           );
         },
       );
@@ -96,10 +133,7 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
       appBar: AppBar(
         title: const Text('Jobinja Jobs'),
         actions: [
-          IconButton(
-            onPressed: openProfile,
-            icon: const Icon(Icons.person),
-          ),
+          IconButton(onPressed: openProfile, icon: const Icon (Icons.person)),
         ],
       ),
       body: body,

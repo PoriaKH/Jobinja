@@ -18,11 +18,13 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
 
   late AuthPresenter presenter;
   bool isLoading = false;
+  late ApiService apiService;
 
   @override
   void initState() {
     super.initState();
-    presenter = AuthPresenter(this, ApiService());
+    apiService = ApiService();
+    presenter = AuthPresenter(this, apiService);
   }
 
   void handleLogin() {
@@ -57,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => const HomeScreen(),
+        builder: (_) => HomeScreen(apiService: apiService),
       ),
     );
   }

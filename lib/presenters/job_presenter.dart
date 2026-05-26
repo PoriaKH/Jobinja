@@ -20,15 +20,18 @@ class JobPresenter {
     try {
       final jobs = await apiService.getJobs();
       view.hideLoading();
-
-      if (jobs.isEmpty) {
-        view.showError('No jobs found.');
-      } else {
-        view.showJobs(jobs);
-      }
+      showResult(jobs);
     } catch (e) {
       view.hideLoading();
       view.showError(e.toString());
+    }
+  }
+
+  void showResult(List<Job> jobs) {
+    if (jobs.isEmpty) {
+      view.showError('No jobs found.');
+    } else {
+      view.showJobs(jobs);
     }
   }
 }
