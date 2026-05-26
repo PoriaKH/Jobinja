@@ -14,12 +14,25 @@ class LoginResult {
   });
 }
 
+class ProfileResult {
+  final bool success;
+  final String status;
+  final User? user;
+
+  ProfileResult({
+    required this.success,
+    required this.status,
+    required this.user
+  });
+}
+
 class ApiService {
   static const String loginUrl = 'https://jobinja.ir/login/user';
   static const String jobsUrl = 'https://jobinja.ir/jobs';
 
   final HttpClient _client = HttpClient();
   final List<Cookie> _cookies = [];
+
 
   Future<LoginResult> login(String email, String password) async {
     try {
@@ -158,6 +171,10 @@ class ApiService {
     } catch (e) {
       throw Exception('Could not load jobs: $e');
     }
+  }
+  Future<ProfileResult> getProfile() async {
+    //TODO...
+    return ProfileResult(success: true, status: "status", user: User(name: 'Test_Sample', email: 'TestMail@gmail.com'));
   }
 
   List<Job> _parseJobs(String html) {

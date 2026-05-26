@@ -1,3 +1,4 @@
+import 'package:code/views/profile_screen.dart';
 import 'package:flutter/material.dart';
 import '../models/job.dart';
 import '../presenters/job_presenter.dart';
@@ -69,9 +70,10 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
   }
 
   void openProfile() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Profile page will be implemented later.'),
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileScreen(apiService: presenter.apiService),
       ),
     );
   }
