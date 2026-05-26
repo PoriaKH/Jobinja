@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../presenters/auth_presenter.dart';
 import '../services/api_service.dart';
 import '../utils/validators.dart';
-import 'success_screen.dart';
+import 'home_screen.dart';
 import 'error_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -57,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => const SuccessScreen(),
+        builder: (_) => const HomeScreen(),
       ),
     );
   }

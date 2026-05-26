@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import '../models/job.dart';
 import '../models/user.dart';
 
 class LoginResult {
@@ -17,6 +18,38 @@ class LoginResult {
 
 class ApiService {
   static const String baseUrl = 'https://jobinja.ir/login/user';
+
+
+  Future<List<Job>> getJobs() async {
+    await Future.delayed(const Duration(seconds: 1));
+  // Adding samples, later we must update this part by adding its API.
+    return [
+      Job(
+        title: 'Flutter Developer',
+        companyName: 'Jobinja',
+        location: 'Tehran',
+        cooperationType: 'Full-time',
+        publishDate: 'Today',
+        shortDescription: 'Develop and maintain mobile applications using Flutter.',
+      ),
+      Job(
+        title: 'Backend Developer',
+        companyName: 'Tech Company',
+        location: 'Remote',
+        cooperationType: 'Part-time',
+        publishDate: '2 days ago',
+        shortDescription: 'Work on REST APIs and server-side application logic.',
+      ),
+      Job(
+        title: 'UI/UX Designer',
+        companyName: 'Design Studio',
+        location: 'Isfahan',
+        cooperationType: 'Internship',
+        publishDate: '1 week ago',
+        shortDescription: 'Design user-friendly interfaces for web and mobile apps.',
+      ),
+    ];
+  }
 
   Future<LoginResult> login(String email, String password) async {
     const loginUrl = 'https://jobinja.ir/login/user';
