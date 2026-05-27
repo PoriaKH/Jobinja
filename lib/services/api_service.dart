@@ -29,6 +29,7 @@ class ProfileResult {
 class ApiService {
   static const String loginUrl = 'https://jobinja.ir/login/user';
   static const String jobsUrl = 'https://jobinja.ir/jobs';
+  static const String accountUrl = 'https://jobinja.ir/account';
 
   final HttpClient _client = HttpClient();
   final List<Cookie> _cookies = [];
@@ -172,9 +173,74 @@ class ApiService {
       throw Exception('Could not load jobs: $e');
     }
   }
+
+  User _parseProfile(String html) {
+    final emailMatch = RegExp(
+      r'data-email="([^"]+)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    final fullNameMatch = RegExp(
+      r'v-model="full_name"[^>]*value="([^"]*)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    final email = _cleanHtml(emailMatch?.group(1) ?? '');
+    final fullName = _cleanHtml(fullNameMatch?.group(1) ?? '');
+
+    if (email.isEmpty && fullName.isEmpty) {
+      throw Exception('Could not parse profile data.');
+    }
+
+    return User(
+      email: email,
+      name: fullName,
+    );
+  }
+  
   Future<ProfileResult> getProfile() async {
     //TODO...
-    return ProfileResult(success: true, status: "status", user: User(name: 'Test_Sample', email: 'TestMail@gmail.com'));
+    try {
+      await Future.delayed(const Duration(seconds: 1));
+
+      final request = await _client.getUrl(Uri.parse(accountUrl));
+      request.persistentConnection = false;
+
+      _addBrowserHeaders(request);
+
+      request.headers.set(HttpHeaders.refererHeader, 'https://jobinja.ir/');
+      request.cookies.addAll(_cookies);
+
+      final response = await request.close();
+
+      _saveCookies(response.cookies);
+
+      final html = await utf8.decodeStream(response);
+
+      print('PROFILE status: ${response.statusCode}');
+      print('PROFILE body length: ${html.length}');
+
+      if (response.statusCode != 200) {
+        print('PROFILE body: $html');
+        throw Exception('Profile request failed: ${response.statusCode}');
+      }
+
+      if (html.contains('c-loginForm')) {
+        throw Exception('User is not authenticated. Please login again.');
+      }
+
+      final user = _parseProfile(html);
+
+      print('Profile email: ${user.email}');
+      print('Profile full name: ${user.name}');
+      
+      ProfileResult profileResult = ProfileResult(success: true, status: "200", user: user);
+      return profileResult;
+    } catch (e) {
+      return ProfileResult(success: false, status: "Something went wrong. Profile not found!", user: null);
+    }
+
+    // return ProfileResult(success: true, status: "status", user: User(name: 'Test_Sample', email: 'TestMail@gmail.com'));
   }
 
   List<Job> _parseJobs(String html) {

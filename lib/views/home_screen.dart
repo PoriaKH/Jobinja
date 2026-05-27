@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
   }
 
   void openProfile() {
-    Navigator.pushReplacement(
+    Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ProfileScreen(apiService: presenter.apiService),

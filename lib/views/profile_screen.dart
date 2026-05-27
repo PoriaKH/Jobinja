@@ -67,6 +67,10 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView{
     });
   }
 
+  void goBackToHome() {
+    Navigator.pop(context);
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +91,7 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView{
       );
     } else{
       body = ListView.builder(
-        itemCount: 2,
+        itemCount: 1,
         itemBuilder: (context, index) {
           // final job = jobs[index];
           return Card(
@@ -106,8 +110,27 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView{
     return Scaffold(
       appBar: AppBar(
         title: const Text('Jobinja Profile'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: goBackToHome,
+        ),
       ),
-      body: body,
+      body: Column(
+        children: [
+          Expanded(child: body),
+
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: goBackToHome,
+                child: const Text('Back To Home'),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
