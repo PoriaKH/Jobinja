@@ -15,38 +15,17 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> implements ProfileView{
+class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
   late ProfilePresenter presenter;
   bool isLoading = false;
   String? errorMessage;
   User? user;
 
-  // Define other variables
-  //
-
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     presenter = ProfilePresenter(this, widget.apiService);
     presenter.loadProfile();
-  }
-
-  @override
-  void hideLoading() {
-    setState(() {
-      isLoading = false;
-    });
-    // TODO: implement hideLoading
-  }
-
-  @override
-  void showError(String message) {
-    // TODO: implement showError
-    setState(() {
-      errorMessage = message;
-      user = null;
-    });
   }
 
   @override
@@ -55,12 +34,25 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView{
       isLoading = true;
       errorMessage = null;
     });
-    // TODO: implement showLoading
+  }
+
+  @override
+  void hideLoading() {
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  @override
+  void showError(String message) {
+    setState(() {
+      errorMessage = message;
+      user = null;
+    });
   }
 
   @override
   void showProfile(User user) {
-    // TODO: implement showProfile
     setState(() {
       this.user = user;
       errorMessage = null;
@@ -71,42 +63,126 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView{
     Navigator.pop(context);
   }
 
+  void showLogoutMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('We are implementing logout feature.'),
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    // TODO: implement build
-    Widget body;
-
+  Widget buildProfileBody() {
     if (isLoading) {
-      body = const Center(child: CircularProgressIndicator());
-    } else if (errorMessage != null) {
-      body = Center(
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (errorMessage != null) {
+      return Center(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Text(
             errorMessage!,
             textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16),
           ),
         ),
       );
-    } else{
-      body = ListView.builder(
-        itemCount: 1,
-        itemBuilder: (context, index) {
-          // final job = jobs[index];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: ListTile(
-              subtitle: Text(
-                '${user!.name}\n'
-                    '${user!.email}\n',
-              ),
-            ),
-          );
-        },
+    }
+
+    if (user == null) {
+      return const Center(
+        child: Text('No profile information found.'),
       );
     }
 
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const CircleAvatar(
+            radius: 45,
+            child: Icon(
+              Icons.person,
+              size: 55,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Text(
+            user!.name,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            user!.email,
+            style: TextStyle(
+              fontSize: 15,
+              color: Colors.grey[700],
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+          const SizedBox(height: 28),
+
+          Card(
+            elevation: 3,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: const Text('Full Name'),
+                  subtitle: Text(user!.name),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.email_outlined),
+                  title: const Text('Email Address'),
+                  subtitle: Text(user!.email),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: goBackToHome,
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Back To Home'),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: showLogoutMessage,
+              icon: const Icon(Icons.logout),
+              label: const Text('Logout'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Jobinja Profile'),
@@ -115,22 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView{
           onPressed: goBackToHome,
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(child: body),
-
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: goBackToHome,
-                child: const Text('Back To Home'),
-              ),
-            ),
-          ),
-        ],
-      ),
+      body: buildProfileBody(),
     );
   }
 }
