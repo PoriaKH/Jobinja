@@ -2,6 +2,7 @@ import 'package:code/models/user.dart';
 import 'package:code/presenters/profile_presenter.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final ApiService apiService;
@@ -63,12 +64,30 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
     Navigator.pop(context);
   }
 
-  void showLogoutMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('We are implementing logout feature.'),
-      ),
-    );
+  Future<void> logoutPressed() async {
+    // ScaffoldMessenger.of(context).showSnackBar(
+    //   const SnackBar(
+    //     content: Text('We are implementing logout feature.'),
+    //   ),
+    // );
+    LogoutResult result = await presenter.logout();
+
+    if (result.success) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LoginScreen(),
+        ),
+      );
+    }
+    else{
+      String message = result.status;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Something went wrong. Error: $message'),
+        ),
+      );
+    }
   }
 
   Widget buildProfileBody() {
@@ -168,7 +187,7 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: showLogoutMessage,
+              onPressed: logoutPressed,
               icon: const Icon(Icons.logout),
               label: const Text('Logout'),
               style: OutlinedButton.styleFrom(

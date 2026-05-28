@@ -35,4 +35,18 @@ class ProfilePresenter {
       view.showError(result.status);
     }
   }
+  Future<LogoutResult> logout() async{
+  //   TODO...
+    view.showLoading();
+    try{
+      final result = await apiService.logoutRequest();
+      view.hideLoading();
+      return result;
+    }catch(e){
+      view.hideLoading();
+      return LogoutResult(success: false, status: "Logout failed!");
+    }
+
+
+  }
 }

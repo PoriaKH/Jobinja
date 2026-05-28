@@ -14,6 +14,16 @@ class LoginResult {
   });
 }
 
+class LogoutResult{
+  final bool success;
+  final String status;
+
+  LogoutResult({
+    required this.success,
+    required this.status,
+  });
+}
+
 class ProfileResult {
   final bool success;
   final String status;
@@ -30,6 +40,7 @@ class ApiService {
   static const String loginUrl = 'https://jobinja.ir/login/user';
   static const String jobsUrl = 'https://jobinja.ir/jobs';
   static const String accountUrl = 'https://jobinja.ir/account';
+  static const String logoutUrl = 'https://jobinja.ir/logout';
 
   final HttpClient _client = HttpClient();
   final List<Cookie> _cookies = [];
@@ -356,6 +367,64 @@ class ApiService {
 
   void dispose() {
     _client.close();
+  }
+
+  Future<LogoutResult> logoutRequest() async{
+    // TODO... Send logout request to the server
+
+    // TODO... For now sending a sample logout. must be completed later
+
+    try {
+      final request = await _client.getUrl(Uri.parse(logoutUrl));
+
+      request.persistentConnection = false;
+
+      _addBrowserHeaders(request);
+
+      request.headers.set(
+        HttpHeaders.refererHeader,
+        'https://jobinja.ir/',
+      );
+
+      request.cookies.addAll(_cookies);
+
+      final response = await request.close();
+
+      _saveCookies(response.cookies);
+
+      final body = await utf8.decodeStream(response);
+
+      print('LOGOUT status: ${response.statusCode}');
+      print('LOGOUT body length: ${body.length}');
+
+      if (response.statusCode == 200 ||
+          response.statusCode == 302) {
+
+        _cookies.clear();
+        dispose();
+
+        return LogoutResult(
+          success: true,
+          status: response.statusCode.toString(),
+        );
+      }
+
+      return LogoutResult(
+        success: false,
+        status: 'Logout failed: ${response.statusCode}',
+      );
+
+    } catch (e) {
+      return LogoutResult(
+        success: false,
+        status: e.toString(),
+      );
+    }
+
+    // _cookies.clear();
+    // dispose();
+    //
+    // return LogoutResult(success: true, status: "200");
   }
 }
 

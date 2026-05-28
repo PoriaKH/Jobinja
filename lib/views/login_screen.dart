@@ -66,10 +66,15 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
 
   @override
   void onLoginError(String status) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ErrorScreen(errorStatus: status),
+    // Navigator.pushReplacement(
+    //   context,
+    //   MaterialPageRoute(
+    //     builder: (_) => ErrorScreen(errorStatus: status),
+    //   ),
+    // );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Something went wrong. $status'),
       ),
     );
   }
