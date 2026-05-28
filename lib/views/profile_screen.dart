@@ -73,11 +73,12 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
     LogoutResult result = await presenter.logout();
 
     if (result.success) {
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) => LoginScreen(),
+          builder: (_) => const LoginScreen(),
         ),
+            (route) => false,
       );
     }
     else{

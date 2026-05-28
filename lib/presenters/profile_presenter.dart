@@ -46,7 +46,5 @@ class ProfilePresenter {
       view.hideLoading();
       return LogoutResult(success: false, status: "Logout failed!");
     }
-
-
   }
 }
