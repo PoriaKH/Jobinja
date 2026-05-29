@@ -4,6 +4,7 @@ import 'dart:io';
 import '../models/user.dart';
 import '../models/job.dart';
 import '../models/job_detail.dart';
+import '../models/company.dart';
 
 class LoginResult {
   final bool success;
@@ -476,6 +477,15 @@ class ApiService {
       ).firstMatch(html)?.group(1) ?? '',
     );
 
+    final companyBaseUrl = _cleanHtml(
+      RegExp(
+        r'<a[^>]*class="[^"]*c-companyHeader__logoLink[^"]*"[^>]*href="([^"]+)"',
+        caseSensitive: false,
+      ).firstMatch(html)?.group(1) ?? '',
+    );
+
+    final companyJobsUrl = companyBaseUrl.isEmpty ? '' : '$companyBaseUrl/jobs';
+
     final location = _extractInfoBoxValue(html, 'موقعیت مکانی');
     final cooperationType = _extractInfoBoxValue(html, 'نوع همکاری');
     final seniority = _extractInfoBoxValue(html, 'حداقل سابقه کار');
@@ -503,6 +513,7 @@ class ApiService {
       benefits: companyDescription.isEmpty
           ? 'No benefits/company description found.'
           : companyDescription,
+      companyUrl: companyJobsUrl,
     );
   }
 
@@ -564,6 +575,84 @@ class ApiService {
         .replaceAll(RegExp(r'[ \t]+'), ' ')
         .replaceAll(RegExp(r'\n\s*\n+'), '\n')
         .trim();
+  }
+  Future<Company> getCompany(String companyUrl) async {
+    try {
+      final request = await _client.getUrl(Uri.parse(companyUrl));
+
+      request.persistentConnection = false;
+
+      _addBrowserHeaders(request);
+
+      request.headers.set(HttpHeaders.refererHeader, 'https://jobinja.ir/');
+      request.cookies.addAll(_cookies);
+
+      final response = await request.close();
+
+      _saveCookies(response.cookies);
+
+      final html = await utf8.decodeStream(response);
+
+      print('COMPANY status: ${response.statusCode}');
+      print('COMPANY body length: ${html.length}');
+
+      if (response.statusCode != 200) {
+        throw Exception('Company request failed: ${response.statusCode}');
+      }
+
+      if (html.contains('c-loginForm')) {
+        throw Exception('User is not authenticated. Please login again.');
+      }
+
+      return _parseCompany(html);
+    } catch (e) {
+      throw Exception('Could not load company: $e');
+    }
+  }
+  Company _parseCompany(String html) {
+    final name = _cleanHtml(
+      RegExp(
+        r'<h2[^>]*class="[^"]*c-companyHeader__name[^"]*"[^>]*>([\s\S]*?)</h2>',
+        caseSensitive: false,
+      ).firstMatch(html)?.group(1) ?? '',
+    );
+
+    final logoUrl = _cleanHtml(
+      RegExp(
+        r'<img[^>]*class="[^"]*c-companyHeader__logoImage[^"]*"[^>]*src="([^"]+)"',
+        caseSensitive: false,
+      ).firstMatch(html)?.group(1) ?? '',
+    );
+
+    final metaItems = RegExp(
+      r'<span[^>]*class="[^"]*c-companyHeader__metaItem[^"]*"[^>]*>([\s\S]*?)</span>',
+      caseSensitive: false,
+    )
+        .allMatches(html)
+        .map((match) => _cleanHtml(match.group(1) ?? ''))
+        .where((item) => item.isNotEmpty)
+        .toList();
+
+    final industry = metaItems.isNotEmpty ? metaItems[0] : '';
+    final website = metaItems.length > 2 ? metaItems[2] : '';
+
+    final description = _cleanMultilineHtml(
+      RegExp(
+        r'<section[^>]*class="[^"]*c-cardText[^"]*"[^>]*>[\s\S]*?<div[^>]*class="[^"]*c-cardText__body[^"]*"[^>]*>([\s\S]*?)</div>\s*</section>',
+        caseSensitive: false,
+      ).firstMatch(html)?.group(1) ?? '',
+    );
+
+    final jobs = _parseJobs(html);
+
+    return Company(
+      name: name,
+      logoUrl: logoUrl,
+      description: description,
+      industry: industry,
+      website: website,
+      activeJobs: jobs,
+    );
   }
 }
 

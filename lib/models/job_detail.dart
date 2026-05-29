@@ -8,6 +8,7 @@ class JobDetail {
   final String skills;
   final String conditions;
   final String benefits;
+  final String companyUrl;
 
   JobDetail({
     required this.title,
@@ -19,5 +20,6 @@ class JobDetail {
     required this.skills,
     required this.conditions,
     required this.benefits,
+    required this.companyUrl,
   });
 }

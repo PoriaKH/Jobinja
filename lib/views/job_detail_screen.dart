@@ -70,10 +70,22 @@ class _JobDetailScreenState extends State<JobDetailScreen>
   }
 
   void openCompanyPage() {
+    if (jobDetail == null || jobDetail!.companyUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Company page URL not found.'),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const CompanyScreen(),
+        builder: (_) => CompanyScreen(
+          companyUrl: jobDetail!.companyUrl,
+          apiService: widget.apiService,
+        ),
       ),
     );
   }
