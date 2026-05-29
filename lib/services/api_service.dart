@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../models/user.dart';
 import '../models/job.dart';
+import '../models/job_detail.dart';
 
 class LoginResult {
   final bool success;
@@ -425,6 +426,23 @@ class ApiService {
     // dispose();
     //
     // return LogoutResult(success: true, status: "200");
+  }
+  Future<JobDetail> getJobDetail(String detailUrl) async {
+    // TODO... Just sending a sample for now, later we will implement the real request.
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    return JobDetail(
+      title: 'Flutter Developer',
+      companyName: 'Jobinja Sample Company',
+      location: 'Tehran',
+      cooperationType: 'Full-time',
+      seniority: 'Mid-Level',
+      description:
+      'This is a sample job detail description. The real Jobinja request will be implemented later.',
+      skills: 'Flutter, Dart, REST API, Git, MVP Architecture',
+      conditions: 'Ability to work in a team, problem solving skills, and basic mobile development experience.',
+      benefits: 'Insurance, remote work, flexible working hours, learning opportunities.',
+    );
   }
 }
 

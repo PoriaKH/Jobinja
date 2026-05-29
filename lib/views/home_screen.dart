@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/job.dart';
 import '../presenters/job_presenter.dart';
 import '../services/api_service.dart';
+import 'job_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final ApiService apiService;
@@ -78,10 +79,14 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
     );
   }
 
-  void openJob(Job job){
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Selected job URL: ${job.detailUrl}'),
+  void openJob(Job job) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => JobDetailScreen(
+          detailUrl: job.detailUrl,
+          apiService: presenter.apiService,
+        ),
       ),
     );
   }
