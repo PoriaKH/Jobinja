@@ -1,5 +1,7 @@
 import 'package:code/services/api_service.dart';
 
+import '../models/LogoutResult.dart';
+import '../models/ProfileResult.dart';
 import '../models/user.dart';
 
 abstract class ProfileView{

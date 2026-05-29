@@ -1,6 +1,7 @@
 import 'package:code/models/user.dart';
 import 'package:code/presenters/profile_presenter.dart';
 import 'package:flutter/material.dart';
+import '../models/LogoutResult.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 

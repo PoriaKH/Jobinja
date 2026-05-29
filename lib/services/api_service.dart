@@ -1,42 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../models/LoginResult.dart';
+import '../models/LogoutResult.dart';
+import '../models/ProfileResult.dart';
 import '../models/user.dart';
 import '../models/job.dart';
 import '../models/job_detail.dart';
 import '../models/company.dart';
-
-class LoginResult {
-  final bool success;
-  final String status;
-
-  LoginResult({
-    required this.success,
-    required this.status,
-  });
-}
-
-class LogoutResult{
-  final bool success;
-  final String status;
-
-  LogoutResult({
-    required this.success,
-    required this.status,
-  });
-}
-
-class ProfileResult {
-  final bool success;
-  final String status;
-  final User? user;
-
-  ProfileResult({
-    required this.success,
-    required this.status,
-    required this.user
-  });
-}
 
 class ApiService {
   static const String loginUrl = 'https://jobinja.ir/login/user';
