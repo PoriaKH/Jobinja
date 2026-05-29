@@ -1,3 +1,4 @@
+import 'package:code/views/job_detail_screen.dart';
 import 'package:flutter/material.dart';
 
 import '../models/company.dart';
@@ -75,7 +76,7 @@ class _CompanyScreenState extends State<CompanyScreen> implements CompanyView {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const ComingSoonScreen(),
+        builder: (_) => JobDetailScreen(detailUrl: job.detailUrl, apiService: widget.apiService),
       ),
     );
   }
