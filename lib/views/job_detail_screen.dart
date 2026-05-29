@@ -84,6 +84,7 @@ class _JobDetailScreenState extends State<JobDetailScreen>
       MaterialPageRoute(
         builder: (_) => CompanyScreen(
           companyUrl: jobDetail!.companyUrl,
+          city: jobDetail!.location,
           apiService: widget.apiService,
         ),
       ),

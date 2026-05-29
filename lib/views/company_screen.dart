@@ -8,11 +8,13 @@ import 'coming_soon_screen.dart';
 
 class CompanyScreen extends StatefulWidget {
   final String companyUrl;
+  final String city;
   final ApiService apiService;
 
   const CompanyScreen({
     super.key,
     required this.companyUrl,
+    required this.city,
     required this.apiService,
   });
 
@@ -139,6 +141,14 @@ class _CompanyScreenState extends State<CompanyScreen> implements CompanyView {
                   leading: const Icon(Icons.category_outlined),
                   title: const Text('Industry'),
                   subtitle: Text(c.industry.isEmpty ? 'Not found' : c.industry),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: const Text('City'),
+                  subtitle: Text(
+                    widget.city.isEmpty ? 'Not available' : widget.city,
+                  ),
                 ),
                 const Divider(height: 1),
                 ListTile(
