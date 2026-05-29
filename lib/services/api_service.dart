@@ -428,21 +428,142 @@ class ApiService {
     // return LogoutResult(success: true, status: "200");
   }
   Future<JobDetail> getJobDetail(String detailUrl) async {
-    // TODO... Just sending a sample for now, later we will implement the real request.
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final request = await _client.getUrl(Uri.parse(detailUrl));
+
+      request.persistentConnection = false;
+
+      _addBrowserHeaders(request);
+
+      request.headers.set(HttpHeaders.refererHeader, jobsUrl);
+      request.cookies.addAll(_cookies);
+
+      final response = await request.close();
+
+      _saveCookies(response.cookies);
+
+      final html = await utf8.decodeStream(response);
+
+      print('JOB DETAIL status: ${response.statusCode}');
+      print('JOB DETAIL body length: ${html.length}');
+
+      if (response.statusCode != 200) {
+        throw Exception('Job detail request failed: ${response.statusCode}');
+      }
+
+      if (html.contains('c-loginForm')) {
+        throw Exception('User is not authenticated. Please login again.');
+      }
+
+      return _parseJobDetail(html);
+    } catch (e) {
+      throw Exception('Could not load job detail: $e');
+    }
+  }
+
+  JobDetail _parseJobDetail(String html) {
+    final title = _cleanHtml(
+      RegExp(
+        r'<h1[^>]*>([\s\S]*?)</h1>',
+        caseSensitive: false,
+      ).firstMatch(html)?.group(1) ?? '',
+    );
+
+    final companyName = _cleanHtml(
+      RegExp(
+        r'<h2[^>]*class="[^"]*c-companyHeader__name[^"]*"[^>]*>([\s\S]*?)</h2>',
+        caseSensitive: false,
+      ).firstMatch(html)?.group(1) ?? '',
+    );
+
+    final location = _extractInfoBoxValue(html, 'موقعیت مکانی');
+    final cooperationType = _extractInfoBoxValue(html, 'نوع همکاری');
+    final seniority = _extractInfoBoxValue(html, 'حداقل سابقه کار');
+
+    final salary = _extractInfoBoxValue(html, 'حقوق');
+    final gender = _extractInfoBoxValue(html, 'جنسیت');
+    final military = _extractInfoBoxValue(html, 'وضعیت نظام وظیفه');
+    final education = _extractInfoBoxValue(html, 'حداقل مدرک تحصیلی');
+
+    final skills = _extractInfoBoxValue(html, 'مهارت‌های مورد نیاز');
+
+    final description = _extractSectionText(html, 'شرح موقعیت شغلی');
+    final companyDescription = _extractSectionText(html, 'معرفی شرکت');
 
     return JobDetail(
-      title: 'Flutter Developer',
-      companyName: 'Jobinja Sample Company',
-      location: 'Tehran',
-      cooperationType: 'Full-time',
-      seniority: 'Mid-Level',
-      description:
-      'This is a sample job detail description. The real Jobinja request will be implemented later.',
-      skills: 'Flutter, Dart, REST API, Git, MVP Architecture',
-      conditions: 'Ability to work in a team, problem solving skills, and basic mobile development experience.',
-      benefits: 'Insurance, remote work, flexible working hours, learning opportunities.',
+      title: title,
+      companyName: companyName,
+      location: location,
+      cooperationType: cooperationType,
+      seniority: seniority,
+      description: description,
+      skills: skills,
+      conditions:
+      'Salary: $salary\nGender: $gender\nMilitary Status: $military\nEducation: $education',
+      benefits: companyDescription.isEmpty
+          ? 'No benefits/company description found.'
+          : companyDescription,
     );
+  }
+
+  String _extractInfoBoxValue(String html, String title) {
+    final itemRegex = RegExp(
+      r'<li[^>]*class="[^"]*c-infoBox__item[^"]*"[^>]*>([\s\S]*?)</li>',
+      caseSensitive: false,
+    );
+
+    for (final itemMatch in itemRegex.allMatches(html)) {
+      final itemHtml = itemMatch.group(1) ?? '';
+
+      final titleMatch = RegExp(
+        r'<h4[^>]*class="[^"]*c-infoBox__itemTitle[^"]*"[^>]*>([\s\S]*?)</h4>',
+        caseSensitive: false,
+      ).firstMatch(itemHtml);
+
+      final itemTitle = _cleanHtml(titleMatch?.group(1) ?? '');
+
+      if (itemTitle == title) {
+        final values = RegExp(
+          r'<span[^>]*class="[^"]*black[^"]*"[^>]*>([\s\S]*?)</span>',
+          caseSensitive: false,
+        )
+            .allMatches(itemHtml)
+            .map((match) => _cleanHtml(match.group(1) ?? ''))
+            .where((value) => value.isNotEmpty)
+            .toList();
+
+        return values.join(', ');
+      }
+    }
+
+    return '';
+  }
+
+  String _extractSectionText(String html, String title) {
+    final regex = RegExp(
+      '<h4[^>]*class="[^"]*o-box__title[^"]*"[^>]*>\\s*${RegExp.escape(title)}\\s*</h4>'
+      r'\s*<div[^>]*class="[^"]*o-box__text[^"]*"[^>]*>([\s\S]*?)(?=<h4[^>]*class="[^"]*o-box__title|<ul[^>]*class="[^"]*c-infoBox|<hr|</section>)',
+      caseSensitive: false,
+    );
+
+    final match = regex.firstMatch(html);
+
+    return _cleanMultilineHtml(match?.group(1) ?? '');
+  }
+
+  String _cleanMultilineHtml(String value) {
+    return value
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'</div>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<[^>]+>'), ' ')
+        .replaceAll('&zwnj;', '‌')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .replaceAll(RegExp(r'\n\s*\n+'), '\n')
+        .trim();
   }
 }
 

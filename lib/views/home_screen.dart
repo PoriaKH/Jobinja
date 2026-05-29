@@ -91,6 +91,10 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
     );
   }
 
+  Future<void> refreshJobs() async {
+    await presenter.loadJobs();
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget body;
@@ -98,41 +102,78 @@ class _HomeScreenState extends State<HomeScreen> implements JobView {
     if (isLoading) {
       body = const Center(child: CircularProgressIndicator());
     } else if (errorMessage != null) {
-      body = Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text(
-            errorMessage!,
-            textAlign: TextAlign.center,
-          ),
+      body = RefreshIndicator(
+        onRefresh: refreshJobs,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 70,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    errorMessage!,
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  ElevatedButton(
+                    onPressed: () async {
+                      await refreshJobs();
+                    },
+                    child: const Text('Retry'),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'Pull down to refresh',
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     } else {
-      body = ListView.builder(
-        itemCount: jobs.length,
-        itemBuilder: (context, index) {
-          final job = jobs[index];
+      body = RefreshIndicator(
+        onRefresh: refreshJobs,
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: jobs.length,
+          itemBuilder: (context, index) {
+            final job = jobs[index];
 
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: ListTile(
-              title: Text(
-                job.title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: ListTile(
+                title: Text(
+                  job.title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  '${job.companyName}\n'
+                      '${job.location}\n'
+                      '${job.cooperationType}\n'
+                      '${job.publishDate}',
+                ),
+                isThreeLine: true,
+                onTap: () {
+                  openJob(job);
+                },
               ),
-              subtitle: Text(
-                '${job.companyName}\n'
-                    '${job.location}\n'
-                    '${job.cooperationType}\n'
-                    '${job.publishDate}',
-              ),
-              isThreeLine: true,
-              onTap: () {
-                openJob(job);
-              },
-            ),
-          );
-        },
+            );
+          },
+        ),
       );
     }
 
