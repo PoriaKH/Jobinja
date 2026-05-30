@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/LoginResult.dart';
 import '../models/LogoutResult.dart';
@@ -10,12 +11,24 @@ import '../models/job_detail.dart';
 import '../models/company.dart';
 import '../models/signup_data.dart';
 
+
 class ApiService {
   static const String loginUrl = 'https://jobinja.ir/login/user';
   static const String jobsUrl = 'https://jobinja.ir/jobs';
   static const String accountUrl = 'https://jobinja.ir/account';
   static const String logoutUrl = 'https://jobinja.ir/logout';
   static const String signupUrl = 'https://jobinja.ir/join/user';
+  static const String profileImagePathKey = 'profile_image_path';
+
+  Future<void> saveProfileImagePath(String imagePath) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(profileImagePathKey, imagePath);
+  }
+
+  Future<String?> getProfileImagePath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(profileImagePathKey);
+  }
 
   final HttpClient _client = HttpClient();
   final List<Cookie> _cookies = [];

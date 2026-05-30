@@ -4,11 +4,13 @@ import '../models/LogoutResult.dart';
 import '../models/ProfileResult.dart';
 import '../models/user.dart';
 
-abstract class ProfileView{
+abstract class ProfileView {
   void showLoading();
   void hideLoading();
   void showError(String message);
   void showProfile(User user);
+  void showProfileImage(String? imagePath);
+  Future<String?> pickProfileImageFromGallery();
 }
 
 class ProfilePresenter {
@@ -17,34 +19,49 @@ class ProfilePresenter {
 
   ProfilePresenter(this.view, this.apiService);
 
-  Future<void> loadProfile() async{
+  Future<void> loadProfile() async {
     view.showLoading();
-    //TODO...
-    try{
+
+    try {
       final result = await apiService.getProfile();
+      final imagePath = await apiService.getProfileImagePath();
+
       view.hideLoading();
       showResult(result);
-    } catch (e){
+      view.showProfileImage(imagePath);
+    } catch (e) {
       view.hideLoading();
       view.showError(e.toString());
     }
   }
-  void showResult(ProfileResult result){
-    if(result.success){
+
+  void showResult(ProfileResult result) {
+    if (result.success) {
       view.showProfile(result.user!);
-    }
-    else{
+    } else {
       view.showError(result.status);
     }
   }
-  Future<LogoutResult> logout() async{
-  //   TODO...
+
+  Future<void> changeProfileImage() async {
+    final imagePath = await view.pickProfileImageFromGallery();
+
+    if (imagePath == null || imagePath.isEmpty) {
+      return;
+    }
+
+    await apiService.saveProfileImagePath(imagePath);
+    view.showProfileImage(imagePath);
+  }
+
+  Future<LogoutResult> logout() async {
     view.showLoading();
-    try{
+
+    try {
       final result = await apiService.logoutRequest();
       view.hideLoading();
       return result;
-    }catch(e){
+    } catch (e) {
       view.hideLoading();
       return LogoutResult(success: false, status: "Logout failed!");
     }

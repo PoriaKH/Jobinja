@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:code/models/user.dart';
 import 'package:code/presenters/profile_presenter.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../models/LogoutResult.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
@@ -19,9 +23,13 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
   late ProfilePresenter presenter;
+
   bool isLoading = false;
   String? errorMessage;
   User? user;
+  String? profileImagePath;
+
+  final ImagePicker imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -61,16 +69,32 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
     });
   }
 
+  @override
+  void showProfileImage(String? imagePath) {
+    setState(() {
+      profileImagePath = imagePath;
+    });
+  }
+
+  @override
+  Future<String?> pickProfileImageFromGallery() async {
+    final XFile? pickedImage = await imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    return pickedImage?.path;
+  }
+
   void goBackToHome() {
     Navigator.pop(context);
   }
 
+  Future<void> changeProfilePicturePressed() async {
+    await presenter.changeProfileImage();
+  }
+
   Future<void> logoutPressed() async {
-    // ScaffoldMessenger.of(context).showSnackBar(
-    //   const SnackBar(
-    //     content: Text('We are implementing logout feature.'),
-    //   ),
-    // );
     LogoutResult result = await presenter.logout();
 
     if (result.success) {
@@ -81,15 +105,59 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
         ),
             (route) => false,
       );
-    }
-    else{
-      String message = result.status;
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Something went wrong. Error: $message'),
+          content: Text('Something went wrong. Error: ${result.status}'),
         ),
       );
     }
+  }
+
+  ImageProvider? getProfileImageProvider() {
+    if (profileImagePath == null || profileImagePath!.isEmpty) {
+      return null;
+    }
+
+    final file = File(profileImagePath!);
+
+    if (!file.existsSync()) {
+      return null;
+    }
+
+    return FileImage(file);
+  }
+
+  Widget buildProfileAvatar() {
+    final imageProvider = getProfileImageProvider();
+
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        CircleAvatar(
+          radius: 50,
+          backgroundImage: imageProvider,
+          child: imageProvider == null
+              ? const Icon(
+            Icons.person,
+            size: 55,
+          )
+              : null,
+        ),
+        InkWell(
+          onTap: changeProfilePicturePressed,
+          child: CircleAvatar(
+            radius: 17,
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            child: const Icon(
+              Icons.camera_alt,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget buildProfileBody() {
@@ -120,14 +188,17 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          const CircleAvatar(
-            radius: 45,
-            child: Icon(
-              Icons.person,
-              size: 55,
-            ),
+          buildProfileAvatar(),
+
+          const SizedBox(height: 12),
+
+          TextButton.icon(
+            onPressed: changeProfilePicturePressed,
+            icon: const Icon(Icons.photo_library_outlined),
+            label: const Text('Choose Profile Picture'),
           ),
-          const SizedBox(height: 16),
+
+          const SizedBox(height: 12),
 
           Text(
             user!.name,
