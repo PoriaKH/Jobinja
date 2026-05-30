@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+
 import '../presenters/auth_presenter.dart';
 import '../services/api_service.dart';
 import '../utils/validators.dart';
 import 'home_screen.dart';
-import 'error_screen.dart';
+import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,12 +18,14 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
   final passwordController = TextEditingController();
 
   late AuthPresenter presenter;
-  bool isLoading = false;
   late ApiService apiService;
+
+  bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
+
     apiService = ApiService();
     presenter = AuthPresenter(this, apiService);
   }
@@ -38,6 +41,17 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
     }
 
     presenter.login(email, password);
+  }
+
+  void openSignup() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SignupScreen(
+          apiService: apiService,
+        ),
+      ),
+    );
   }
 
   @override
@@ -59,22 +73,20 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => HomeScreen(apiService: apiService),
+        builder: (_) => HomeScreen(
+          apiService: apiService,
+        ),
       ),
     );
   }
 
   @override
   void onLoginError(String status) {
-    // Navigator.pushReplacement(
-    //   context,
-    //   MaterialPageRoute(
-    //     builder: (_) => ErrorScreen(errorStatus: status),
-    //   ),
-    // );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Something went wrong. $status'),
+        content: Text(
+          'Something went wrong. $status',
+        ),
       ),
     );
   }
@@ -95,6 +107,9 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
                 labelText: 'Email',
               ),
             ),
+
+            const SizedBox(height: 12),
+
             TextField(
               controller: passwordController,
               obscureText: true,
@@ -102,12 +117,21 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
                 labelText: 'Password',
               ),
             ),
+
             const SizedBox(height: 20),
+
             isLoading
                 ? const CircularProgressIndicator()
                 : ElevatedButton(
               onPressed: handleLogin,
               child: const Text('Login'),
+            ),
+
+            const SizedBox(height: 12),
+
+            TextButton(
+              onPressed: openSignup,
+              child: const Text('Create a new account'),
             ),
           ],
         ),

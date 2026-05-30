@@ -8,12 +8,14 @@ import '../models/user.dart';
 import '../models/job.dart';
 import '../models/job_detail.dart';
 import '../models/company.dart';
+import '../models/signup_data.dart';
 
 class ApiService {
   static const String loginUrl = 'https://jobinja.ir/login/user';
   static const String jobsUrl = 'https://jobinja.ir/jobs';
   static const String accountUrl = 'https://jobinja.ir/account';
   static const String logoutUrl = 'https://jobinja.ir/logout';
+  static const String signupUrl = 'https://jobinja.ir/join/user';
 
   final HttpClient _client = HttpClient();
   final List<Cookie> _cookies = [];
@@ -625,6 +627,126 @@ class ApiService {
       activeJobs: jobs,
     );
   }
+//   From Here
+  Future<SignupPreparationResult> prepareSignup() async {
+    try {
+      final request = await _client.getUrl(Uri.parse(signupUrl));
+      request.persistentConnection = false;
+
+      _addBrowserHeaders(request);
+
+      final response = await request.close();
+      _saveCookies(response.cookies);
+
+      final html = await utf8.decodeStream(response);
+
+      print('SIGNUP GET status: ${response.statusCode}');
+
+      if (response.statusCode != 200) {
+        return SignupPreparationResult(
+          success: false,
+          status: 'Signup page failed: ${response.statusCode}',
+          csrfToken: '',
+          signupUrl: signupUrl,
+        );
+      }
+
+      final csrfToken = _extractCsrfToken(html);
+
+      if (csrfToken == null || csrfToken.isEmpty) {
+        return SignupPreparationResult(
+          success: false,
+          status: 'Could not find signup CSRF token',
+          csrfToken: '',
+          signupUrl: signupUrl,
+        );
+      }
+
+      print('SIGNUP CSRF: $csrfToken');
+
+      return SignupPreparationResult(
+        success: true,
+        status: '200',
+        csrfToken: csrfToken,
+        signupUrl: signupUrl,
+      );
+    } catch (e) {
+      return SignupPreparationResult(
+        success: false,
+        status: e.toString(),
+        csrfToken: '',
+        signupUrl: signupUrl,
+      );
+    }
+  }
+
+  Future<SignupResult> submitSignup({
+    required String csrfToken,
+    required String email,
+    required String fullName,
+    required String password,
+    required String passwordConfirmation,
+    required String recaptchaToken,
+  }) async {
+    try {
+      final body = Uri(queryParameters: {
+        '_token': csrfToken,
+        'redirect_url': '',
+        'email': email,
+        'full_name': fullName,
+        'password': password,
+        'password_confirmation': passwordConfirmation,
+        'g-recaptcha-response': recaptchaToken,
+      }).query;
+
+      final request = await _client.postUrl(Uri.parse(signupUrl));
+      request.persistentConnection = false;
+      request.followRedirects = false;
+
+      _addBrowserHeaders(request);
+
+      request.headers.set(
+        HttpHeaders.contentTypeHeader,
+        'application/x-www-form-urlencoded',
+      );
+
+      request.headers.set(HttpHeaders.refererHeader, signupUrl);
+      request.headers.set('Origin', 'https://jobinja.ir');
+      request.headers.set('X-CSRF-TOKEN', csrfToken);
+
+      request.cookies.addAll(_cookies);
+      request.write(body);
+
+      final response = await request.close();
+      _saveCookies(response.cookies);
+
+      final responseBody = await utf8.decodeStream(response);
+      final location =
+          response.headers.value(HttpHeaders.locationHeader) ?? '';
+
+      print('SIGNUP POST status: ${response.statusCode}');
+      print('SIGNUP POST location: $location');
+      print('SIGNUP POST body: $responseBody');
+
+      if (response.statusCode == 200 || response.statusCode == 302) {
+        return SignupResult(
+          success: true,
+          status: response.statusCode.toString(),
+        );
+      }
+
+      return SignupResult(
+        success: false,
+        status: 'Signup failed: ${response.statusCode}',
+      );
+    } catch (e) {
+      return SignupResult(
+        success: false,
+        status: e.toString(),
+      );
+    }
+  }
+// To Here
 }
 
 //Valid Username:
