@@ -122,16 +122,20 @@ class _LoginScreenState extends State<LoginScreen> implements AuthView {
 
             isLoading
                 ? const CircularProgressIndicator()
-                : ElevatedButton(
-              onPressed: handleLogin,
-              child: const Text('Login'),
-            ),
+                : Column(
+              children: [
+                ElevatedButton(
+                  onPressed: handleLogin,
+                  child: const Text('Login'),
+                ),
 
-            const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-            TextButton(
-              onPressed: openSignup,
-              child: const Text('Create a new account'),
+                TextButton(
+                  onPressed: openSignup,
+                  child: const Text('Create a new account'),
+                ),
+              ],
             ),
           ],
         ),
