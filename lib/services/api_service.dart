@@ -10,6 +10,7 @@ import '../models/job.dart';
 import '../models/job_detail.dart';
 import '../models/company.dart';
 import '../models/signup_data.dart';
+import '../models/job_filter.dart';
 
 
 class ApiService {
@@ -19,6 +20,9 @@ class ApiService {
   static const String logoutUrl = 'https://jobinja.ir/logout';
   static const String signupUrl = 'https://jobinja.ir/join/user';
   static const String profileImagePathKey = 'profile_image_path';
+  static const String jobCategoriesUrl = 'https://jobinja.ir/api/v10/job/categories';
+  static const String provincesUrl = 'https://jobinja.ir/api/v10/region/province';
+  static const String skillSearchUrl = 'https://jobinja.ir/api/v10/job-skills/search';
 
   Future<void> saveProfileImagePath(String imagePath) async {
     final prefs = await SharedPreferences.getInstance();
@@ -137,11 +141,14 @@ class ApiService {
     print('REDIRECT status: ${response.statusCode}');
   }
 
-  Future<List<Job>> getJobs({int page = 1}) async {
+  Future<List<Job>> getJobs({
+    int page = 1,
+    JobFilter? filter,
+  }) async {
     try {
-      final url = page <= 1 ? jobsUrl : '$jobsUrl?&page=$page';
+      final uri = _buildJobsUri(page: page, filter: filter);
 
-      final request = await _client.getUrl(Uri.parse(url));
+      final request = await _client.getUrl(uri);
       request.persistentConnection = false;
 
       _addBrowserHeaders(request);
@@ -156,7 +163,7 @@ class ApiService {
       final html = await utf8.decodeStream(response);
 
       print('JOBS status: ${response.statusCode}');
-      print('JOBS page: $page');
+      print('JOBS url: $uri');
 
       if (response.statusCode != 200) {
         throw Exception('Jobs request failed: ${response.statusCode}');
@@ -174,6 +181,18 @@ class ApiService {
     } catch (e) {
       throw Exception('Could not load jobs: $e');
     }
+  }
+
+  Uri _buildJobsUri({
+    required int page,
+    JobFilter? filter,
+  }) {
+    if (filter == null || !filter.hasFilters) {
+      return Uri.parse('$jobsUrl?&page=$page');
+    }
+
+    final query = filter.toQueryString(page);
+    return Uri.parse('$jobsUrl?$query');
   }
 
   User _parseProfile(String html) {
@@ -694,6 +713,87 @@ class ApiService {
         signupUrl: signupUrl,
       );
     }
+  }
+
+  Future<List<FilterOption>> getJobCategories() async {
+    final request = await _client.getUrl(Uri.parse(jobCategoriesUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+
+    final response = await request.close();
+    final body = await utf8.decodeStream(response);
+
+    print('JOB CATEGORIES status: ${response.statusCode}');
+
+    if (response.statusCode != 200) {
+      throw Exception('Could not load job categories.');
+    }
+
+    final decoded = jsonDecode(body) as List;
+
+    return decoded
+        .map((item) => FilterOption.fromJson(item))
+        .where((item) => item.name.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<FilterOption>> getProvinces() async {
+    final request = await _client.getUrl(Uri.parse(provincesUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+
+    final response = await request.close();
+    final body = await utf8.decodeStream(response);
+
+    print('PROVINCES status: ${response.statusCode}');
+
+    if (response.statusCode != 200) {
+      throw Exception('Could not load provinces.');
+    }
+
+    final decoded = jsonDecode(body);
+    final data = decoded['data'] as List;
+
+    return data
+        .map((item) => FilterOption.fromJson(item))
+        .where((item) => item.name.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<JobSkill>> searchJobSkills(String query) async {
+    if (query.trim().isEmpty) {
+      return [];
+    }
+
+    final uri = Uri.parse(skillSearchUrl).replace(
+      queryParameters: {
+        'q': query.trim(),
+      },
+    );
+
+    final request = await _client.getUrl(uri);
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+
+    final response = await request.close();
+    final body = await utf8.decodeStream(response);
+
+    print('JOB SKILL SEARCH status: ${response.statusCode}');
+    print('JOB SKILL SEARCH query: $query');
+
+    if (response.statusCode != 200) {
+      throw Exception('Could not search job skills.');
+    }
+
+    final decoded = jsonDecode(body) as List;
+
+    return decoded
+        .map((item) => JobSkill.fromJson(item))
+        .where((item) => item.name.isNotEmpty)
+        .toList();
   }
 
   Future<SignupResult> submitSignup({
