@@ -137,9 +137,11 @@ class ApiService {
     print('REDIRECT status: ${response.statusCode}');
   }
 
-  Future<List<Job>> getJobs() async {
+  Future<List<Job>> getJobs({int page = 1}) async {
     try {
-      final request = await _client.getUrl(Uri.parse(jobsUrl));
+      final url = page <= 1 ? jobsUrl : '$jobsUrl?&page=$page';
+
+      final request = await _client.getUrl(Uri.parse(url));
       request.persistentConnection = false;
 
       _addBrowserHeaders(request);
@@ -154,6 +156,7 @@ class ApiService {
       final html = await utf8.decodeStream(response);
 
       print('JOBS status: ${response.statusCode}');
+      print('JOBS page: $page');
 
       if (response.statusCode != 200) {
         throw Exception('Jobs request failed: ${response.statusCode}');
