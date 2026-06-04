@@ -8,7 +8,7 @@ class Job {
   final String detailUrl;
 
   Job({
-    required this.title,
+    required this.title,//start
     required this.companyName,
     required this.location,
     required this.cooperationType,
