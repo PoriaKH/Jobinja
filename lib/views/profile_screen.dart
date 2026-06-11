@@ -9,6 +9,9 @@ import '../models/LogoutResult.dart';
 import '../services/api_service.dart';
 import 'login_screen.dart';
 
+import 'package:file_picker/file_picker.dart';
+import '../models/resume_upload_result.dart';
+
 class ProfileScreen extends StatefulWidget {
   final ApiService apiService;
 
@@ -86,6 +89,37 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
     return pickedImage?.path;
   }
 
+  @override
+  Future<String?> pickResumeFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+
+    if (result == null || result.files.single.path == null) {
+      return null;
+    }
+
+    return result.files.single.path;
+  }
+
+  @override
+  void showResumeUploadResult(ResumeUploadResult result) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.success
+              ? '${result.status} Score: ${result.score ?? "-"}'
+              : 'Resume upload failed: ${result.status}',
+        ),
+      ),
+    );
+  }
+
+  Future<void> uploadResumePressed() async {
+    await presenter.uploadResume();
+  }
+
   void goBackToHome() {
     Navigator.pop(context);
   }
@@ -93,6 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
   Future<void> changeProfilePicturePressed() async {
     await presenter.changeProfileImage();
   }
+
 
   Future<void> logoutPressed() async {
     LogoutResult result = await presenter.logout();
@@ -252,6 +287,17 @@ class _ProfileScreenState extends State<ProfileScreen> implements ProfileView {
               onPressed: goBackToHome,
               icon: const Icon(Icons.arrow_back),
               label: const Text('Back To Home'),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: isLoading ? null : uploadResumePressed,
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Upload Resume PDF'),
             ),
           ),
 

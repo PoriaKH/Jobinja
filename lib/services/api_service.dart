@@ -11,6 +11,8 @@ import '../models/job_detail.dart';
 import '../models/company.dart';
 import '../models/signup_data.dart';
 import '../models/job_filter.dart';
+import '../models/resume_upload_result.dart';
+import '../models/job_apply_result.dart';
 
 
 class ApiService {
@@ -23,6 +25,440 @@ class ApiService {
   static const String jobCategoriesUrl = 'https://jobinja.ir/api/v10/job/categories';
   static const String provincesUrl = 'https://jobinja.ir/api/v10/region/province';
   static const String skillSearchUrl = 'https://jobinja.ir/api/v10/job-skills/search';
+
+  static const String cvBuilderPageUrl = 'https://jobinja.ir/app/cv-builder';
+  static const String uploadDocumentUrl =
+      'https://jobinja.ir/api/v10/uploads/documents';
+  static const String cvFileUrl =
+      'https://jobinja.ir/api/v10/jobseeker-app/cv-builder/eVlj/cv-file';
+  static const String cvScoreUrl =
+      'https://jobinja.ir/api/v10/jobseeker-app/cv-builder/eVlj/score';
+
+  Future<JobApplyResult> applyToJob({
+    required String jobDetailUrl,
+    required String mobile,
+  }) async {
+    try {
+      final data = await _prepareJobApply(jobDetailUrl);
+
+      return await _sendApplyRequest(
+        applyUrl: data['applyUrl'],
+        referer: jobDetailUrl,
+        csrfToken: data['csrfToken'],
+        mobile: mobile,
+        cvUuid: data['cvUuid'],
+        ref: data['ref'],
+        email: data['email'],
+        fullName: data['fullName'],
+        needsJobAlert: data['needsJobAlert'],
+      );
+    } catch (e) {
+      return JobApplyResult(
+        success: false,
+        needsPhoneVerification: false,
+        status: e.toString(),
+      );
+    }
+  }
+
+  Future<JobApplyResult> verifyJobApplySms({
+    required String jobDetailUrl,
+    required String mobile,
+    required String smsCode,
+  }) async {
+    try {
+      final data = await _prepareJobApply(jobDetailUrl);
+
+      return await _sendApplyRequest(
+        applyUrl: data['applyUrl'],
+        referer: jobDetailUrl,
+        csrfToken: data['csrfToken'],
+        mobile: mobile,
+        cvUuid: data['cvUuid'],
+        ref: data['ref'],
+        email: data['email'],
+        fullName: data['fullName'],
+        needsJobAlert: data['needsJobAlert'],
+        smsCode: smsCode,
+      );
+    } catch (e) {
+      return JobApplyResult(
+        success: false,
+        needsPhoneVerification: false,
+        status: e.toString(),
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> _prepareJobApply(String jobDetailUrl) async {
+    final request = await _client.getUrl(Uri.parse(jobDetailUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+    request.cookies.addAll(_cookies);
+
+    final response = await request.close();
+    _saveCookies(response.cookies);
+
+    final html = await utf8.decodeStream(response);
+
+    print('PREPARE APPLY status: ${response.statusCode}');
+
+    if (response.statusCode != 200) {
+      throw Exception('Could not load job apply page: ${response.statusCode}');
+    }
+
+    final csrfToken = RegExp(
+      r'<meta\s+name="csrf-token"\s+content="([^"]+)"',
+      caseSensitive: false,
+    ).firstMatch(html)?.group(1);
+
+    if (csrfToken == null) {
+      throw Exception('Could not find CSRF token.');
+    }
+
+    final stateMatch = RegExp(
+      r"init-state='([^']+)'",
+      caseSensitive: false,
+    ).firstMatch(html);
+
+        if (stateMatch == null) {
+      throw Exception('Could not find apply init state.');
+    }
+
+    String stateText = stateMatch.group(1)!;
+    stateText = stateText
+        .replaceAll('&quot;', '"')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&zwnj;', '‌');
+
+    final state = jsonDecode(stateText);
+
+    final email = state['employee']?['email'];
+    final fullName = state['employee']?['full_name'];
+    final cvUuid = state['employee']?['file']?['uuid'];
+    final uniqueHash = state['unique_hash'];
+    final timestamp = state['timestamp'];
+    final ref = state['_ref'] ?? '';
+    final needsJobAlert = state['needs_job_alert'] ?? true;
+
+    final uri = Uri.parse(jobDetailUrl);
+    final parts = uri.pathSegments;
+
+    final companyIndex = parts.indexOf('companies');
+    final jobsIndex = parts.indexOf('jobs');
+
+    if (companyIndex == -1 || jobsIndex == -1) {
+      throw Exception('Could not parse job URL.');
+    }
+
+    final companyId = state['company_id'] ?? parts[companyIndex + 1];
+    final jobId = state['job_id'] ?? parts[jobsIndex + 1];
+
+    if (cvUuid == null || uniqueHash == null || timestamp == null) {
+      throw Exception('Uploaded resume was not found. Upload your resume first.');
+    }
+
+    final applyUrl =
+        'https://jobinja.ir/api/v10/companies/$companyId/jobs/$jobId/apply';
+
+    return {
+      'csrfToken': csrfToken,
+      'cvUuid': cvUuid,
+      'uniqueHash': uniqueHash,
+      'timestamp': timestamp,
+      'companyId': companyId,
+      'jobId': jobId,
+      'ref': ref,
+      'needsJobAlert': needsJobAlert,
+      'applyUrl': applyUrl,
+      'email': email,
+      'fullName': fullName,
+    };
+  }
+
+  Future<JobApplyResult> _sendApplyRequest({
+    required String applyUrl,
+    required String referer,
+    required String csrfToken,
+    required String mobile,
+    required String cvUuid,
+    required String ref,
+    required String email,
+    required String fullName,
+    required bool needsJobAlert,
+    String? smsCode,
+  }) async {
+    final request = await _client.postUrl(Uri.parse(applyUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+
+    request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+    request.headers.set(HttpHeaders.refererHeader, referer);
+    request.headers.set('Origin', 'https://jobinja.ir');
+    request.headers.set('X-CSRF-TOKEN', csrfToken);
+
+    request.cookies.addAll(_cookies);
+
+    final body = {
+      'email': email,
+      '_ref': ref,
+      'full_name': fullName,
+      'contact_number': mobile,
+      'file_id': cvUuid,
+      'create_job_alert': needsJobAlert ? 1 : 0,
+      'verification_token': smsCode ?? '',
+    };
+
+    final encodedBody = utf8.encode(jsonEncode(body));
+
+    print('JOB APPLY REQUEST BODY: ${jsonEncode(body)}');
+
+    request.contentLength = encodedBody.length;
+    request.add(encodedBody);
+
+    final response = await request.close();
+    _saveCookies(response.cookies);
+
+    final responseBody = await utf8.decodeStream(response);
+
+    print('JOB APPLY status: ${response.statusCode}');
+    print('JOB APPLY body: $responseBody');
+
+    final decoded = responseBody.isNotEmpty ? jsonDecode(responseBody) : {};
+    final errorType = decoded['data']?['error_type'];
+
+    if (errorType == 'SENT_VERIFICATION_TOKEN') {
+      return JobApplyResult(
+        success: false,
+        needsPhoneVerification: true,
+        status: 'Phone verification required.',
+        phoneNumber: decoded['data']?['phone_verification']?['phone_number'],
+        formattedPhoneNumber:
+        decoded['data']?['phone_verification']?['formatted_phone_number'],
+      );
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return JobApplyResult(
+        success: true,
+        needsPhoneVerification: false,
+        status: 'Resume sent successfully.',
+      );
+    }
+
+    return JobApplyResult(
+      success: false,
+      needsPhoneVerification: false,
+      status: decoded['data']?['message'] ??
+          decoded['message'] ??
+          'Apply failed: ${response.statusCode}',
+    );
+  }
+
+  Future<ResumeUploadResult> uploadResume(String filePath) async {
+    try {
+      final csrfToken = await _getCvBuilderCsrfToken();
+
+      final uploaded = await _uploadResumeDocument(
+        filePath: filePath,
+        csrfToken: csrfToken,
+      );
+
+      if (uploaded == null) {
+        return ResumeUploadResult(
+          success: false,
+          status: 'Could not upload document.',
+        );
+      }
+
+      final attachSuccess = await _attachResumeToCv(
+        uuid: uploaded['uuid'] ?? '',
+        csrfToken: csrfToken,
+      );
+
+      if (!attachSuccess) {
+        return ResumeUploadResult(
+          success: false,
+          status: 'Document uploaded, but could not attach it to CV.',
+        );
+      }
+
+      final score = await _getCvScore(csrfToken);
+
+      return ResumeUploadResult(
+        success: true,
+        status: 'Resume uploaded successfully.',
+        fileName: uploaded['original_name'],
+        uuid: uploaded['uuid'],
+        fileUrl: uploaded['url'],
+        score: score,
+      );
+    } catch (e) {
+      return ResumeUploadResult(
+        success: false,
+        status: e.toString(),
+      );
+    }
+  }
+
+  Future<String> _getCvBuilderCsrfToken() async {
+    final request = await _client.getUrl(Uri.parse(cvBuilderPageUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+    request.headers.set(HttpHeaders.acceptHeader, 'text/html,*/*');
+    request.cookies.addAll(_cookies);
+
+    final response = await request.close();
+
+    _saveCookies(response.cookies);
+
+    final html = await utf8.decodeStream(response);
+
+    final metaMatch = RegExp(
+      r'<meta\s+name="csrf-token"\s+content="([^"]+)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    if (metaMatch != null) {
+      return metaMatch.group(1)!;
+    }
+
+    final inputMatch = RegExp(
+      r'<input[^>]*name="_token"[^>]*value="([^"]+)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    if (inputMatch != null) {
+      return inputMatch.group(1)!;
+    }
+
+    throw Exception('Could not find CV builder CSRF token.');
+  }
+
+  Future<Map<String, dynamic>?> _uploadResumeDocument({
+    required String filePath,
+    required String csrfToken,
+  }) async {
+    final file = File(filePath);
+
+    if (!await file.exists()) {
+      throw Exception('Selected file does not exist.');
+    }
+
+    final fileName = file.uri.pathSegments.last;
+    final boundary =
+        '----WebKitFormBoundary${DateTime.now().millisecondsSinceEpoch}';
+
+    final request = await _client.postUrl(Uri.parse(uploadDocumentUrl));
+    request.persistentConnection = false;
+
+    request.headers.set(HttpHeaders.acceptHeader, 'application/json, text/javascript, */*; q=0.01');
+    request.headers.set(
+      HttpHeaders.contentTypeHeader,
+      'multipart/form-data; boundary=$boundary',
+    );
+    request.headers.set(HttpHeaders.refererHeader, cvBuilderPageUrl);
+    request.headers.set('Origin', 'https://jobinja.ir');
+    request.headers.set('X-CSRF-TOKEN', csrfToken);
+    request.headers.set('X-Requested-With', 'XMLHttpRequest');
+
+    request.cookies.addAll(_cookies);
+
+    final header = utf8.encode(
+      '--$boundary\r\n'
+          'Content-Disposition: form-data; name="file"; filename="$fileName"\r\n'
+          'Content-Type: application/pdf\r\n\r\n',
+    );
+
+    final footer = utf8.encode('\r\n--$boundary--\r\n');
+
+    request.add(header);
+    request.add(await file.readAsBytes());
+    request.add(footer);
+
+    final response = await request.close();
+    _saveCookies(response.cookies);
+
+    final body = await utf8.decodeStream(response);
+
+    print('UPLOAD DOCUMENT status: ${response.statusCode}');
+    print('UPLOAD DOCUMENT body: $body');
+
+    if (response.statusCode != 201) {
+      throw Exception('Upload failed: ${response.statusCode} body: $body');
+    }
+
+    final decoded = jsonDecode(body);
+    return decoded['data']?['document'];
+  }
+
+  Future<bool> _attachResumeToCv({
+    required String uuid,
+    required String csrfToken,
+  }) async {
+    final request = await _client.putUrl(Uri.parse(cvFileUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+
+    request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+    request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+    request.headers.set(HttpHeaders.refererHeader, cvBuilderPageUrl);
+    request.headers.set('Origin', 'https://jobinja.ir');
+    request.headers.set('X-CSRF-TOKEN', csrfToken);
+
+    request.cookies.addAll(_cookies);
+
+    request.write(jsonEncode({
+      'cv_file_uuid': uuid,
+    }));
+
+    final response = await request.close();
+
+    _saveCookies(response.cookies);
+
+    final body = await utf8.decodeStream(response);
+
+    print('ATTACH CV FILE status: ${response.statusCode}');
+    print('ATTACH CV FILE body: $body');
+
+    return response.statusCode == 202 || response.statusCode == 200;
+  }
+
+  Future<int?> _getCvScore(String csrfToken) async {
+    final request = await _client.getUrl(Uri.parse(cvScoreUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+
+    request.headers.set(HttpHeaders.acceptHeader, 'application/json, */*');
+    request.headers.set(HttpHeaders.refererHeader, cvBuilderPageUrl);
+    request.headers.set('X-CSRF-TOKEN', csrfToken);
+
+    request.cookies.addAll(_cookies);
+
+    final response = await request.close();
+
+    _saveCookies(response.cookies);
+
+    final body = await utf8.decodeStream(response);
+
+    print('CV SCORE status: ${response.statusCode}');
+    print('CV SCORE body: $body');
+
+    if (response.statusCode != 200) {
+      return null;
+    }
+
+    final decoded = jsonDecode(body);
+    return decoded['data']?['score']?['sum'];
+  }
+
+
 
   Future<void> saveProfileImagePath(String imagePath) async {
     final prefs = await SharedPreferences.getInstance();

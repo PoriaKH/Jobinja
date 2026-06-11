@@ -24,14 +24,23 @@ class _JobDetailScreenState extends State<JobDetailScreen>
   late JobDetailPresenter presenter;
 
   bool isLoading = false;
+  bool isApplying = false;
   String? errorMessage;
   JobDetail? jobDetail;
+
+  final mobileController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     presenter = JobDetailPresenter(this, widget.apiService);
     presenter.loadJobDetail(widget.detailUrl);
+  }
+
+  @override
+  void dispose() {
+    mobileController.dispose();
+    super.dispose();
   }
 
   @override
@@ -65,6 +74,61 @@ class _JobDetailScreenState extends State<JobDetailScreen>
     });
   }
 
+  @override
+  void showApplyLoading() {
+    setState(() {
+      isApplying = true;
+    });
+  }
+
+  @override
+  void hideApplyLoading() {
+    setState(() {
+      isApplying = false;
+    });
+  }
+
+  @override
+  void showApplyMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Future<String?> askSmsCode(String phone) async {
+    final controller = TextEditingController();
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: const Text('Mobile Verification'),
+            content: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'SMS Code',
+                hintText: phone.isEmpty ? 'Enter received code' : phone,
+              ),
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context, controller.text.trim());
+                },
+                child: const Text('Verify and Continue'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void goBack() {
     Navigator.pop(context);
   }
@@ -72,9 +136,7 @@ class _JobDetailScreenState extends State<JobDetailScreen>
   void openCompanyPage() {
     if (jobDetail == null || jobDetail!.companyUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Company page URL not found.'),
-        ),
+        const SnackBar(content: Text('Company page URL not found.')),
       );
       return;
     }
@@ -91,6 +153,13 @@ class _JobDetailScreenState extends State<JobDetailScreen>
     );
   }
 
+  void applyPressed() {
+    presenter.applyToJob(
+      widget.detailUrl,
+      mobileController.text,
+    );
+  }
+
   Widget buildInfoRow(String title, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -101,9 +170,7 @@ class _JobDetailScreenState extends State<JobDetailScreen>
             '$title: ',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          Expanded(
-            child: Text(value),
-          ),
+          Expanded(child: Text(value)),
         ],
       ),
     );
@@ -132,6 +199,43 @@ class _JobDetailScreenState extends State<JobDetailScreen>
     );
   }
 
+  Widget buildApplySection() {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Send Resume',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: mobileController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Mobile Number',
+                hintText: '09123456789',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: isApplying ? null : applyPressed,
+              icon: const Icon(Icons.send),
+              label: Text(isApplying ? 'Sending...' : 'Send Resume'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget buildBody() {
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -150,9 +254,7 @@ class _JobDetailScreenState extends State<JobDetailScreen>
     }
 
     if (jobDetail == null) {
-      return const Center(
-        child: Text('No job detail found.'),
-      );
+      return const Center(child: Text('No job detail found.'));
     }
 
     final job = jobDetail!;
@@ -187,6 +289,8 @@ class _JobDetailScreenState extends State<JobDetailScreen>
           ),
 
           const SizedBox(height: 16),
+
+          buildApplySection(),
 
           buildSection('Job Description', job.description),
           buildSection('Required Skills', job.skills),

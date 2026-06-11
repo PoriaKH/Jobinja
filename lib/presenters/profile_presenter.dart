@@ -3,6 +3,7 @@ import 'package:code/services/api_service.dart';
 import '../models/LogoutResult.dart';
 import '../models/ProfileResult.dart';
 import '../models/user.dart';
+import '../models/resume_upload_result.dart';
 
 abstract class ProfileView {
   void showLoading();
@@ -11,6 +12,8 @@ abstract class ProfileView {
   void showProfile(User user);
   void showProfileImage(String? imagePath);
   Future<String?> pickProfileImageFromGallery();
+  Future<String?> pickResumeFile();
+  void showResumeUploadResult(ResumeUploadResult result);
 }
 
 class ProfilePresenter {
@@ -65,5 +68,20 @@ class ProfilePresenter {
       view.hideLoading();
       return LogoutResult(success: false, status: "Logout failed!");
     }
+  }
+
+  Future<void> uploadResume() async {
+    final filePath = await view.pickResumeFile();
+
+    if (filePath == null || filePath.isEmpty) {
+      return;
+    }
+
+    view.showLoading();
+
+    final result = await apiService.uploadResume(filePath);
+
+    view.hideLoading();
+    view.showResumeUploadResult(result);
   }
 }
