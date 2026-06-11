@@ -4,6 +4,7 @@ import '../models/LogoutResult.dart';
 import '../models/ProfileResult.dart';
 import '../models/user.dart';
 import '../models/resume_upload_result.dart';
+import '../models/applied_job.dart';
 
 abstract class ProfileView {
   void showLoading();
@@ -14,6 +15,11 @@ abstract class ProfileView {
   Future<String?> pickProfileImageFromGallery();
   Future<String?> pickResumeFile();
   void showResumeUploadResult(ResumeUploadResult result);
+  void showAppliedJobs(List<AppliedJob> jobs);
+  void showAppliedJobsError(String message);
+  Future<bool> confirmDeleteResume();
+  void showResumeDeleteResult(ResumeUploadResult result);
+  void showResumeStatus(bool isUploaded);
 }
 
 class ProfilePresenter {
@@ -24,6 +30,7 @@ class ProfilePresenter {
 
   Future<void> loadProfile() async {
     view.showLoading();
+    await loadResumeStatus();
 
     try {
       final result = await apiService.getProfile();
@@ -32,6 +39,7 @@ class ProfilePresenter {
       view.hideLoading();
       showResult(result);
       view.showProfileImage(imagePath);
+      await loadAppliedJobs();
     } catch (e) {
       view.hideLoading();
       view.showError(e.toString());
@@ -83,5 +91,40 @@ class ProfilePresenter {
 
     view.hideLoading();
     view.showResumeUploadResult(result);
+    await loadResumeStatus();
+  }
+
+  Future<void> loadAppliedJobs() async {
+    try {
+      final jobs = await apiService.getAppliedJobs();
+      view.showAppliedJobs(jobs);
+    } catch (e) {
+      view.showAppliedJobsError(e.toString());
+    }
+  }
+
+  Future<void> deleteResume() async {
+    final confirmed = await view.confirmDeleteResume();
+
+    if (!confirmed) {
+      return;
+    }
+
+    view.showLoading();
+
+    final result = await apiService.deleteResume();
+
+    view.hideLoading();
+    view.showResumeDeleteResult(result);
+    await loadResumeStatus();
+  }
+
+  Future<void> loadResumeStatus() async {
+    try {
+      final uploaded = await apiService.isResumeUploaded();
+      view.showResumeStatus(uploaded);
+    } catch (e) {
+      view.showResumeStatus(false);
+    }
   }
 }

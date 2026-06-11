@@ -13,6 +13,7 @@ import '../models/signup_data.dart';
 import '../models/job_filter.dart';
 import '../models/resume_upload_result.dart';
 import '../models/job_apply_result.dart';
+import '../models/applied_job.dart';
 
 
 class ApiService {
@@ -33,6 +34,194 @@ class ApiService {
       'https://jobinja.ir/api/v10/jobseeker-app/cv-builder/eVlj/cv-file';
   static const String cvScoreUrl =
       'https://jobinja.ir/api/v10/jobseeker-app/cv-builder/eVlj/score';
+  static const String appliedJobsUrl = 'https://jobinja.ir/jobs/applied';
+
+  Future<bool> isResumeUploaded() async {
+    final request = await _client.getUrl(Uri.parse(cvBuilderPageUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+    request.headers.set(HttpHeaders.refererHeader, 'https://jobinja.ir/account');
+    request.cookies.addAll(_cookies);
+
+    final response = await request.close();
+    _saveCookies(response.cookies);
+
+    final html = await utf8.decodeStream(response);
+
+    print('CHECK RESUME status: ${response.statusCode}');
+
+    if (response.statusCode != 200) {
+      throw Exception('Could not check resume status.');
+    }
+
+    final match = RegExp(
+      r'<cv-maker[^>]*init-state="([^"]+)"',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(html);
+
+    if (match == null) {
+      print('CV MAKER INIT STATE NOT FOUND');
+      return false;
+    }
+
+    final encodedState = match.group(1)!;
+
+    final decodedJson = utf8.decode(base64Decode(encodedState));
+    final decoded = jsonDecode(decodedJson);
+
+    final attachedCvScore =
+    decoded['cv']?['score_details']?['details']?['attached_cv']
+    ?['calculated_score'];
+
+    print('ATTACHED CV SCORE: $attachedCvScore');
+
+    return attachedCvScore is num && attachedCvScore > 0;
+  }
+
+  Future<ResumeUploadResult> deleteResume() async {
+    try {
+      final csrfToken = await _getCvBuilderCsrfToken();
+
+      final deleted = await _deleteResumeFromCv(csrfToken: csrfToken);
+
+      if (!deleted) {
+        return ResumeUploadResult(
+          success: false,
+          status: 'Could not delete resume.',
+        );
+      }
+
+      final score = await _getCvScore(csrfToken);
+
+      return ResumeUploadResult(
+        success: true,
+        status: 'Resume deleted successfully.',
+        score: score,
+      );
+    } catch (e) {
+      return ResumeUploadResult(
+        success: false,
+        status: e.toString(),
+      );
+    }
+  }
+
+  Future<bool> _deleteResumeFromCv({
+    required String csrfToken,
+  }) async {
+    final request = await _client.deleteUrl(Uri.parse(cvFileUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+
+    request.headers.set(HttpHeaders.acceptHeader, '*/*');
+    request.headers.set(
+      HttpHeaders.contentTypeHeader,
+      'text/plain;charset=UTF-8',
+    );
+    request.headers.set(HttpHeaders.refererHeader, cvBuilderPageUrl);
+    request.headers.set('Origin', 'https://jobinja.ir');
+    request.headers.set('X-CSRF-TOKEN', csrfToken);
+
+    request.cookies.addAll(_cookies);
+
+    final bodyBytes = utf8.encode('{"delete":true}');
+    request.contentLength = bodyBytes.length;
+    request.add(bodyBytes);
+
+    final response = await request.close();
+    _saveCookies(response.cookies);
+
+    final body = await utf8.decodeStream(response);
+
+    print('DELETE CV FILE status: ${response.statusCode}');
+    print('DELETE CV FILE body: $body');
+
+    if (response.statusCode != 202 && response.statusCode != 200) {
+      return false;
+    }
+
+    final decoded = jsonDecode(body);
+    return decoded['status'] == 'success';
+  }
+
+  Future<List<AppliedJob>> getAppliedJobs() async {
+    try {
+      final request = await _client.getUrl(Uri.parse(appliedJobsUrl));
+      request.persistentConnection = false;
+
+      _addBrowserHeaders(request);
+      request.headers.set(HttpHeaders.refererHeader, 'https://jobinja.ir/');
+      request.cookies.addAll(_cookies);
+
+      final response = await request.close();
+      _saveCookies(response.cookies);
+
+      final html = await utf8.decodeStream(response);
+
+      print('APPLIED JOBS status: ${response.statusCode}');
+
+      if (response.statusCode != 200) {
+        throw Exception('Applied jobs request failed: ${response.statusCode}');
+      }
+
+      if (html.contains('c-loginForm')) {
+        throw Exception('User is not authenticated.');
+      }
+
+      return _parseAppliedJobs(html);
+    } catch (e) {
+      throw Exception('Could not load applied jobs: $e');
+    }
+  }
+
+  List<AppliedJob> _parseAppliedJobs(String html) {
+    final match = RegExp(
+      r'<application-list-wrapper[^>]*init-state="([^"]+)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    if (match == null) {
+      return [];
+    }
+
+    var jsonText = match.group(1)!;
+
+    jsonText = jsonText
+        .replaceAll('&quot;', '"')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&#039;', "'")
+        .replaceAll('&zwnj;', '‌');
+
+    final decoded = jsonDecode(jsonText);
+
+    final applications = decoded['applications']?['data'];
+
+    if (applications == null || applications is! List) {
+      return [];
+    }
+
+    return applications.map<AppliedJob>((item) {
+      final job = item['job'] ?? {};
+      final company = job['company'] ?? {};
+      final logos = company['logo_templates'];
+
+      return AppliedJob(
+        shortId: item['short_id'] ?? '',
+        title: job['title'] ?? '',
+        companyName: company['persian_name'] ?? '',
+        companyEnglishName: company['english_name'] ?? '',
+        status: item['status'] ?? '',
+        machineStatus: item['machine_status'] ?? '',
+        createdAt: item['created_at'] ?? '',
+        detailsLink: item['details_link'] ?? '',
+        jobLink: item['job_link'] ?? '',
+        logoUrl: logos == null ? null : logos['companies_logo_200x200'],
+      );
+    }).toList();
+  }
 
   Future<JobApplyResult> applyToJob({
     required String jobDetailUrl,
