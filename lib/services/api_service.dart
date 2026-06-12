@@ -30,11 +30,61 @@ class ApiService {
   static const String cvBuilderPageUrl = 'https://jobinja.ir/app/cv-builder';
   static const String uploadDocumentUrl =
       'https://jobinja.ir/api/v10/uploads/documents';
-  static const String cvFileUrl =
-      'https://jobinja.ir/api/v10/jobseeker-app/cv-builder/eVlj/cv-file';
-  static const String cvScoreUrl =
-      'https://jobinja.ir/api/v10/jobseeker-app/cv-builder/eVlj/score';
+  String _cvFileUrl(String cvId) =>
+      'https://jobinja.ir/api/v10/jobseeker-app/cv-builder/$cvId/cv-file';
+
+  String _cvScoreUrl(String cvId) =>
+      'https://jobinja.ir/api/v10/jobseeker-app/cv-builder/$cvId/score';
+
   static const String appliedJobsUrl = 'https://jobinja.ir/jobs/applied';
+
+
+  Future<Map<String, String>> _getCvBuilderInfo() async {
+    final request = await _client.getUrl(Uri.parse(cvBuilderPageUrl));
+    request.persistentConnection = false;
+
+    _addBrowserHeaders(request);
+    request.headers.set(HttpHeaders.acceptHeader, 'text/html,*/*');
+    request.cookies.addAll(_cookies);
+
+    final response = await request.close();
+    _saveCookies(response.cookies);
+
+    final html = await utf8.decodeStream(response);
+
+    final tokenMatch = RegExp(
+      r'<meta\s+name="csrf-token"\s+content="([^"]+)"',
+      caseSensitive: false,
+    ).firstMatch(html);
+
+    if (tokenMatch == null) {
+      throw Exception('Could not find CV builder CSRF token.');
+    }
+
+    final stateMatch = RegExp(
+      r'<cv-maker[^>]*init-state="([^"]+)"',
+      caseSensitive: false,
+      dotAll: true,
+    ).firstMatch(html);
+
+    if (stateMatch == null) {
+      throw Exception('Could not find CV builder state.');
+    }
+
+    final decodedJson = utf8.decode(base64Decode(stateMatch.group(1)!));
+    final decoded = jsonDecode(decodedJson);
+
+    final cvId = decoded['cv']?['id'];
+
+    if (cvId == null || cvId.toString().isEmpty) {
+      throw Exception('Could not find CV id.');
+    }
+
+    return {
+      'csrfToken': tokenMatch.group(1)!,
+      'cvId': cvId.toString(),
+    };
+  }
 
   Future<bool> isResumeUploaded() async {
     final request = await _client.getUrl(Uri.parse(cvBuilderPageUrl));
@@ -82,9 +132,14 @@ class ApiService {
 
   Future<ResumeUploadResult> deleteResume() async {
     try {
-      final csrfToken = await _getCvBuilderCsrfToken();
+      final cvInfo = await _getCvBuilderInfo();
+      final csrfToken = cvInfo['csrfToken']!;
+      final cvId = cvInfo['cvId']!;
 
-      final deleted = await _deleteResumeFromCv(csrfToken: csrfToken);
+      final deleted = await _deleteResumeFromCv(
+        csrfToken: csrfToken,
+        cvId: cvId,
+      );
 
       if (!deleted) {
         return ResumeUploadResult(
@@ -93,7 +148,7 @@ class ApiService {
         );
       }
 
-      final score = await _getCvScore(csrfToken);
+      final score = await _getCvScore(csrfToken, cvId);
 
       return ResumeUploadResult(
         success: true,
@@ -108,10 +163,16 @@ class ApiService {
     }
   }
 
+  // Future<bool> _deleteResumeFromCv({
+  //   required String csrfToken,
+  //   required String cvId,
+  // }) async {
+  //   final request = await _client.deleteUrl(Uri.parse(_cvFileUrl(cvId)));
   Future<bool> _deleteResumeFromCv({
     required String csrfToken,
+    required String cvId,
   }) async {
-    final request = await _client.deleteUrl(Uri.parse(cvFileUrl));
+    final request = await _client.deleteUrl(Uri.parse(_cvFileUrl(cvId)));
     request.persistentConnection = false;
 
     _addBrowserHeaders(request);
@@ -127,7 +188,7 @@ class ApiService {
 
     request.cookies.addAll(_cookies);
 
-    final bodyBytes = utf8.encode('{"delete":true}');
+    final bodyBytes = utf8.encode(jsonEncode({}));
     request.contentLength = bodyBytes.length;
     request.add(bodyBytes);
 
@@ -139,8 +200,12 @@ class ApiService {
     print('DELETE CV FILE status: ${response.statusCode}');
     print('DELETE CV FILE body: $body');
 
-    if (response.statusCode != 202 && response.statusCode != 200) {
+    if (response.statusCode != 200 && response.statusCode != 202) {
       return false;
+    }
+
+    if (body.trim().isEmpty) {
+      return true;
     }
 
     final decoded = jsonDecode(body);
@@ -449,7 +514,9 @@ class ApiService {
 
   Future<ResumeUploadResult> uploadResume(String filePath) async {
     try {
-      final csrfToken = await _getCvBuilderCsrfToken();
+      final cvInfo = await _getCvBuilderInfo();
+      final csrfToken = cvInfo['csrfToken']!;
+      final cvId = cvInfo['cvId']!;
 
       final uploaded = await _uploadResumeDocument(
         filePath: filePath,
@@ -466,6 +533,7 @@ class ApiService {
       final attachSuccess = await _attachResumeToCv(
         uuid: uploaded['uuid'] ?? '',
         csrfToken: csrfToken,
+        cvId: cvId,
       );
 
       if (!attachSuccess) {
@@ -475,7 +543,7 @@ class ApiService {
         );
       }
 
-      final score = await _getCvScore(csrfToken);
+      final score = await _getCvScore(csrfToken, cvId);
 
       return ResumeUploadResult(
         success: true,
@@ -588,8 +656,9 @@ class ApiService {
   Future<bool> _attachResumeToCv({
     required String uuid,
     required String csrfToken,
+    required String cvId,
   }) async {
-    final request = await _client.putUrl(Uri.parse(cvFileUrl));
+    final request = await _client.putUrl(Uri.parse(_cvFileUrl(cvId)));
     request.persistentConnection = false;
 
     _addBrowserHeaders(request);
@@ -602,12 +671,14 @@ class ApiService {
 
     request.cookies.addAll(_cookies);
 
-    request.write(jsonEncode({
+    final bodyBytes = utf8.encode(jsonEncode({
       'cv_file_uuid': uuid,
     }));
 
-    final response = await request.close();
+    request.contentLength = bodyBytes.length;
+    request.add(bodyBytes);
 
+    final response = await request.close();
     _saveCookies(response.cookies);
 
     final body = await utf8.decodeStream(response);
@@ -615,11 +686,16 @@ class ApiService {
     print('ATTACH CV FILE status: ${response.statusCode}');
     print('ATTACH CV FILE body: $body');
 
-    return response.statusCode == 202 || response.statusCode == 200;
+    if (response.statusCode != 200 && response.statusCode != 202) {
+      return false;
+    }
+
+    final decoded = jsonDecode(body);
+    return decoded['status'] == 'success';
   }
 
-  Future<int?> _getCvScore(String csrfToken) async {
-    final request = await _client.getUrl(Uri.parse(cvScoreUrl));
+  Future<int?> _getCvScore(String csrfToken, String cvId) async {
+    final request = await _client.getUrl(Uri.parse(_cvScoreUrl(cvId)));
     request.persistentConnection = false;
 
     _addBrowserHeaders(request);
@@ -631,7 +707,6 @@ class ApiService {
     request.cookies.addAll(_cookies);
 
     final response = await request.close();
-
     _saveCookies(response.cookies);
 
     final body = await utf8.decodeStream(response);
